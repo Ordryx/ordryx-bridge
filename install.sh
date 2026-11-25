@@ -3,8 +3,8 @@
 #
 #   curl -fsSL https://get.ordryx.com/bridge | sh
 #
-# It installs the one release named below, checks it's that release, and asks
-# nothing. Everything goes in this user's home folder but the service, which
+# It installs the one release named below, checks its files are that release's
+# (by their own hash, whatever the server sent), and asks nothing. Everything goes in this user's home folder but the service, which
 # needs sudo where the computer allows it without a password, and is otherwise
 # this user's own. Moonraker's own files get two small additions, once, and it
 # says which. Nothing here sends anything anywhere: the program it starts shows
@@ -16,7 +16,7 @@
 set -eu
 
 VERSION="@VERSION@"
-COMMIT="@COMMIT@"
+TREE="@TREE@"
 REPO="@REPO@"
 ACCOUNT="@ACCOUNT@"
 MIN_PYTHON="3.9"
@@ -45,24 +45,26 @@ check_machine() {
 }
 
 get_release() {
-    # A release is a commit, named here and checked: whatever the server sends,
-    # only that commit is what runs.
+    # A release is a tag, and its files have one hash (git's own, of the whole
+    # folder), named here and checked: whatever the server sends, only those
+    # files are what runs.
     if [ -d "$CODE/.git" ]; then
         [ "$(git -C "$CODE" remote get-url origin 2>/dev/null)" = "$REPO" ] \
             || stop "$CODE is another copy of something: move it, then run this again. Nothing was changed."
-        git -C "$CODE" fetch --quiet origin
+        git -C "$CODE" fetch --quiet --tags --force origin
     elif [ -e "$CODE" ] && [ -n "$(ls -A "$CODE" 2>/dev/null)" ]; then
         stop "There's already a folder $CODE: move it, then run this again. Nothing was changed."
     else
         git clone --quiet "$REPO" "$CODE"
     fi
-    git -C "$CODE" cat-file -e "$COMMIT^{commit}" 2>/dev/null \
-        || stop "That release ($VERSION) isn't at $REPO. Nothing was changed."
-    git -C "$CODE" checkout --quiet -B main "$COMMIT"
-    git -C "$CODE" reset --quiet --hard "$COMMIT"
+    git -C "$CODE" cat-file -e "v$VERSION^{commit}" 2>/dev/null \
+        || stop "That release ($VERSION) isn't at $REPO yet. Nothing was changed. Try again in a few minutes."
+    git -C "$CODE" checkout --quiet -B main "v$VERSION^{commit}"
+    git -C "$CODE" reset --quiet --hard "v$VERSION^{commit}"
     git -C "$CODE" clean -fdxq
-    [ "$(git -C "$CODE" rev-parse HEAD)" = "$COMMIT" ] || stop "The download wasn't this release. Nothing is running."
-    ok "Ordryx Bridge $VERSION, commit $(printf '%.12s' "$COMMIT")"
+    [ "$(git -C "$CODE" rev-parse 'HEAD^{tree}')" = "$TREE" ] \
+        || stop "The download wasn't this release's files. Nothing is running."
+    ok "Ordryx Bridge $VERSION, files $(printf '%.12s' "$TREE") as released"
 }
 
 make_env() {
@@ -254,7 +256,7 @@ show_code() {
 }
 
 main() {
-    case "$COMMIT" in
+    case "$TREE" in
         @*) stop "This is the installer before its release is filled in. Use:  curl -fsSL https://get.ordryx.com/bridge | sh" ;;
     esac
     umask 022

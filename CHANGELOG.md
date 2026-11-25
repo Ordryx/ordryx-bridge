@@ -1,5 +1,11 @@
 # Ordryx Bridge
 
+## 0.3.1
+
+The installer names its release by its tag and checks the files by their own
+hash, so `curl -fsSL https://get.ordryx.com/bridge | sh` installs exactly what
+was released. Nothing else changes.
+
 ## 0.3.0
 
 The first release: pairs with an Ordryx by a code or by being found on the
