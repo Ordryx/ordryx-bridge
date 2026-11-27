@@ -69,6 +69,16 @@ get_release() {
 
 make_env() {
     [ -x "$ENVDIR/bin/python" ] || python3 -m venv "$ENVDIR"
+    # Its packages come from PyPI and nowhere else, whatever this computer's own
+    # pip settings say. Raspberry Pi OS adds piwheels.org to every install: none
+    # of its files can be the release's (their hashes differ), and where it
+    # can't be reached each package waits minutes on it. Kept in the
+    # environment, so Moonraker's updates read it too.
+    cat >"$ENVDIR/pip.conf" <<PIP
+[global]
+index-url = https://pypi.org/simple
+extra-index-url = https://pypi.org/simple
+PIP
     # pip refuses anything whose bytes aren't the ones the release lists
     "$ENVDIR/bin/python" -m pip install --quiet --disable-pip-version-check --require-hashes \
         -r "$CODE/requirements.lock" || stop "Its packages didn't install. Nothing is running."
@@ -177,10 +187,20 @@ moonraker_entries() {
         return 0
     fi
     changed=""
-    if ! grep -q '^\[update_manager ordryx_bridge\]' "$conf"; then
+    # Moonraker restarts a service for an update only when the entry has the
+    # service's own name. Releases before 0.3.2 wrote ordryx_bridge, which it
+    # warned about and wouldn't restart: renamed here, the rest left as it is.
+    if grep -q '^\[update_manager ordryx_bridge\]' "$conf"; then
+        sed 's/^\[update_manager ordryx_bridge\]/[update_manager ordryx-bridge]/' "$conf" >"$DATA/moonraker.conf.new"
+        cat "$DATA/moonraker.conf.new" >"$conf" # (the file keeps its owner and mode)
+        rm -f "$DATA/moonraker.conf.new"
+        changed="yes"
+        ok "Renamed [update_manager ordryx_bridge] to [update_manager ordryx-bridge] in $conf"
+    fi
+    if ! grep -q '^\[update_manager ordryx-bridge\]' "$conf"; then
         cat >>"$conf" <<ENTRY
 
-[update_manager ordryx_bridge]
+[update_manager ordryx-bridge]
 type: git_repo
 path: $CODE
 origin: $REPO
@@ -190,7 +210,7 @@ requirements: requirements.lock
 managed_services: ordryx-bridge
 ENTRY
         changed="yes"
-        ok "Added [update_manager ordryx_bridge] to $conf"
+        ok "Added [update_manager ordryx-bridge] to $conf"
     fi
     if [ -f "$asvc" ] && ! grep -qx 'ordryx-bridge' "$asvc"; then
         printf 'ordryx-bridge\n' >>"$asvc"

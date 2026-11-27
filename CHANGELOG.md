@@ -1,5 +1,17 @@
 # Ordryx Bridge
 
+## 0.3.2
+
+The installer takes its packages from PyPI only, whatever the computer's own
+pip settings say. Raspberry Pi OS adds piwheels.org to every install; on a
+network where that can't be reached, installing waited minutes on each package
+and looked like a failure.
+
+Moonraker's update entry is `[update_manager ordryx-bridge]`, the service's own
+name: under the earlier `ordryx_bridge` Moonraker warned that it couldn't
+restart the service after an update. Running the installer again renames an
+entry already there.
+
 ## 0.3.1
 
 The installer names its release by its tag and checks the files by their own
